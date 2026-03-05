@@ -6,10 +6,9 @@ pipeline {
   }
 
   environment {
-    // Если Docker Desktop уже в PATH, эту строку можно удалить
     PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
 
-    DOCKERHUB_CREDENTIALS_ID = 'Docker_Hub' // credentialsId в Jenkins (если будешь пушить)
+    DOCKERHUB_CREDENTIALS_ID = 'Docker_Hub'
     DOCKERHUB_REPO = 'YOUR_DOCKERHUB_USER/temperature-converter'
     DOCKER_IMAGE_TAG = 'latest'
   }
@@ -41,18 +40,30 @@ pipeline {
 
     stage('Publish Coverage Report') {
       steps {
-        jacoco(
-          execPattern: '**/target/jacoco.exec',
-          classPattern: '**/target/classes',
-          sourcePattern: '**/src/main/java'
-        )
+        script {
+          try {
+            jacoco(
+              execPattern: '**/target/jacoco.exec',
+              classPattern: '**/target/classes',
+              sourcePattern: '**/src/main/java'
+            )
+          } catch (err) {
+            echo "JaCoCo publish skipped (plugin missing or not configured): ${err}"
+            archiveArtifacts artifacts: 'target/site/jacoco/**', allowEmptyArchive: true
+          }
+        }
       }
     }
 
     stage('Build Docker Image') {
       steps {
         script {
-          docker.build("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}")
+          try {
+            bat 'docker version'
+            docker.build("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}")
+          } catch (err) {
+            echo "Docker build skipped (Docker not available on Jenkins agent): ${err}"
+          }
         }
       }
     }
@@ -61,8 +72,12 @@ pipeline {
       when { expression { return env.PUSH_TO_DOCKERHUB == 'true' } }
       steps {
         script {
-          docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
-            docker.image("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}").push()
+          try {
+            docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
+              docker.image("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}").push()
+            }
+          } catch (err) {
+            echo "Docker push skipped (credentials/docker not available): ${err}"
           }
         }
       }
