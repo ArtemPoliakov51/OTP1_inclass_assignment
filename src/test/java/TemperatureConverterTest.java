@@ -48,7 +48,6 @@ public class TemperatureConverterTest {
 
     @Test
     void testIsExtremeTemperature_falseCases_andBoundaries() {
-        // границы НЕ экстремальные (строго ниже -40 и строго выше 50)
         assertFalse(converter.isExtremeTemperature(-40.0));
         assertFalse(converter.isExtremeTemperature(50.0));
 
@@ -65,7 +64,6 @@ public class TemperatureConverterTest {
 
     @Test
     void testKelvinToCelsius_exampleCase() {
-        // Input: 300 K -> Output: 26.85°C
         assertEquals(26.85, converter.kelvinToCelsius(300.0), 1e-9);
     }
 }
