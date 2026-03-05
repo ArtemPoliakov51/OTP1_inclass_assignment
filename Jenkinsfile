@@ -1,40 +1,70 @@
 pipeline {
   agent any
 
+  tools {
+    maven 'Maven3'   // В Jenkins должен быть tool с таким именем
+  }
+
+  environment {
+    // Если Docker Desktop уже в PATH, эту строку можно удалить
+    PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
+
+    DOCKERHUB_CREDENTIALS_ID = 'Docker_Hub' // credentialsId в Jenkins (если будешь пушить)
+    DOCKERHUB_REPO = 'YOUR_DOCKERHUB_USER/temperature-converter'
+    DOCKER_IMAGE_TAG = 'latest'
+  }
+
   stages {
-    stage('check') {
+
+    stage('Checkout') {
       steps {
-        echo 'Checking project'
+        checkout scm
       }
     }
 
-    stage('build job') {
+    stage('Run Tests') {
       steps {
-        echo 'Building project'
+        bat 'mvn -B clean test'
+      }
+      post {
+        always {
+          junit '**/target/surefire-reports/*.xml'
+        }
       }
     }
 
-    stage('test') {
+    stage('Code Coverage') {
       steps {
-        echo 'Running tests'
+        bat 'mvn -B jacoco:report'
       }
     }
 
-    stage('Report') {
+    stage('Publish Coverage Report') {
       steps {
-        echo 'Generating report'
+        jacoco(
+          execPattern: '**/target/jacoco.exec',
+          classPattern: '**/target/classes',
+          sourcePattern: '**/src/main/java'
+        )
       }
     }
 
     stage('Build Docker Image') {
       steps {
-        echo 'Building docker image'
+        script {
+          docker.build("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}")
+        }
       }
     }
 
-    stage('Push Docker Image to Docker Hub') {
+    stage('Push Docker Image to Docker Hub (optional)') {
+      when { expression { return env.PUSH_TO_DOCKERHUB == 'true' } }
       steps {
-        echo 'Pushing docker image'
+        script {
+          docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CREDENTIALS_ID) {
+            docker.image("${DOCKERHUB_REPO}:${DOCKER_IMAGE_TAG}").push()
+          }
+        }
       }
     }
   }
